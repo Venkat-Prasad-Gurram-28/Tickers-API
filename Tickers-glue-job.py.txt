@@ -1,0 +1,33 @@
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from pyspark.sql.functions import monotonically_increasing_id, concat_ws
+
+## @params: [JOB_NAME]
+args = getResolvedOptions(sys.argv, [ 'database', 'table_name', 'data_length', 'JOB_NAME'])
+
+database_name = args['database']
+table_name = args['table_name']
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+dynamic_df = glueContext.create_dynamic_frame.from_catalog(
+        database = database_name,
+        table_name = table_name
+)
+
+df = dynamic_df.toDF()
+
+df = df.withColumn("index", monotonically_increasing_id())
+df = df.withColumn("inst_srt_key", concat_ws("#", df['index'], df['instType'], df['instId']))
+
+
+print(df.show())
+job.commit()
